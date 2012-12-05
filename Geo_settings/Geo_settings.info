@@ -1,0 +1,5 @@
+name = Geo location Settings 
+description = "Geo location Settings"
+core = 6.x
+
+

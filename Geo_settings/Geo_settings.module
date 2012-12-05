@@ -1,0 +1,57 @@
+<?php
+
+/*
+ * Implementation of hook_menu() 
+ */
+function Geo_settings_init(){
+	 $mid = db_result(db_query("SELECT mlid FROM {menu_links} WHERE link_title = '%s' AND link_path like '%s%'",'My Profile',variable_get('menu_config_text', 'sdm').'/'));
+	if ($mid=='') {
+               	menu_rebuild();
+	}
+}	
+function Geo_settings_menu() {
+    $items = array();
+    $items['admin/settings/sdm'] = array(
+		'title' => t('SDM Administration'),
+		'description' => t('Update the settings which needs to be configured with Geolocation.'),
+		'position' => 'left',
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('Geo_admin_settings'),
+		'access arguments' => array('administer site configuration'),
+	);
+	
+    return $items;
+                  
+}
+
+function Geo_admin_settings() {
+
+        $inc_path=$_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/geoip.inc';
+	$dat_path=$_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/GeoIP.dat';  
+        $form['sdm_portal_settings'] = array('#type' => 'fieldset',
+                                             '#title' => t('SDM Portal Settings'),
+                                             '#weight' => -9,
+                                             '#collapsible' => TRUE,
+                                             '#collapsed' => TRUE,
+                                            ); 	 
+
+ 	$form['sdm_portal_settings']['Geolocation_dat_file_path'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Geo-dat path'),
+		'#description' =>t('Enter or paste the following path '. $_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/GeoIP.dat'),  
+		'#size' => 60,
+	  '#required' => TRUE,
+		'#default_value' => variable_get('Geolocation_dat_file_path',$dat_path),
+	);
+	$form['sdm_portal_settings']['Geolocation_inc_file_path'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Geo-inc path'),
+		'#description' =>t('Enter or paste the following path '. $_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/geoip.inc'),  
+		'#size' => 60,
+	  '#required' => TRUE,
+   '#default_value' => variable_get('Geolocation_inc_file_path',$inc_path),
+	);
+	$form['#submit'][] = 'system_admin_theme_submit';
+	return system_settings_form($form);
+}
+

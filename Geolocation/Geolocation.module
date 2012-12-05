@@ -1,0 +1,350 @@
+<?php
+
+global $location,$language;
+
+/**
+ * Implementation of hook_theme().
+ */
+function Geolocation_theme($existing, $type, $theme, $path) {
+return array( 'Geolocation_list' => array(
+	      'arguments' => array()));
+} 
+function Geolocation_init() {
+	global $location,$language,$base_url; 
+	$languages=language_list('enabled');
+	Geolocation();
+	$doc_path=drupal_get_path_alias($_GET['q']);
+  
+/**
+ *  Changing the user's language which is selected by user from internationalization lightbox.
+*/
+	drupal_add_js('function dd_call(fm){ 
+	var lang=fm 
+	$.ajax({type: "post",url: "'.$base_url.'/international/"+fm,
+		success: function(data){ 
+							if(fm=="'.language_default()->language.'") { 
+								url="'.$base_url.'/'.$doc_path.'"; 
+							}
+							else {  
+								url="'.$base_url.'/"+fm+"/'.$doc_path.'"; 
+							}
+							window.location.href=url;
+		}	
+	});		
+	}','inline');
+	/**
+ *  When users logged out this function will redirect to the page with same language which selected by user from internationalization lightbox.
+*/
+
+	if($_COOKIE['user'] && !$_SESSION['lang']) {
+   geo_session_restore_session_get($_COOKIE['user']);
+    db_query("DELETE FROM {session_restore} WHERE uid = %d", $_COOKIE['user']); 
+	}
+/**
+ *  When users redirecting to the multilingual pages with geolocation language.
+*/
+ 	if(!$_SESSION['lang']) {
+		$languages=language_list('enabled');
+   	$language = $languages[1][$_SESSION['location']['geo_language']]; 
+		global $language;
+                 	}
+/**
+ *  When users redirecting to the pages with out multilingual.
+*/
+ 	if($_SESSION['lang']) {
+		$languages=language_list('enabled');
+   	$language = $languages[1][$_SESSION['lang']]; 
+		global $language;
+                 	}
+}
+/**
+ * Implementation of hook_schema().
+ */
+function Geolocation_menu() {
+	$items=array();
+	$items['international'] = array(
+		'title' => t('International'),
+		'page callback' => 'Geolocation_international',
+		'access callback' => TRUE,
+		'type' => MENU_NORMAL_ITEM,
+		);
+	$items['international/%'] = array(
+		'title' => t('International'),
+		'page callback' => 'Geolocation_international_session',
+		'access callback' => TRUE,
+		'type' => MENU_NORMAL_ITEM,
+		);
+	$items['admin/settings/geolocation'] = array(
+    'title' => 'Geolocation',
+    'description' => 'Configure languages for geolocate',
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('Geofilepath'),
+    'access arguments' => array('administer site configuration'),
+     ); 
+	$items['admin/settings/geolocation/general'] = array(
+    'title' => 'Geolocation Files',
+    'description' => 'Configure languages for geolocate',
+    'page callback' => 'drupal_get_form', 
+    'page arguments' => array('Geofilepath'),
+    'access arguments' => array('administer site configuration'),
+     'type' => MENU_DEFAULT_LOCAL_TASK,
+    'weight' => -10,
+     ); 
+	$items['admin/settings/geolocation/geoadd'] = array(
+		'title' => t('Add Geolocation language'),
+		'description' => t('Add language code and country code to geolocate'), 
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('Geolocation_international_language'),
+		'access arguments' => array('administer site configuration'),
+		'type' => MENU_LOCAL_TASK, 
+		);
+	$items['admin/settings/geolocation/geodelete'] = array(
+		'title' => t('Delete Geolocation language'),
+		'description' => t('Delete language code and country code to geolocate'), 
+		'page callback' => 'drupal_get_form',
+		'page arguments' => array('Geolocation_international_language_delete'),
+		'access arguments' => array('administer site configuration'),
+		'type' => MENU_LOCAL_TASK, 
+		);
+	$items['admin/settings/geolocation/geolist'] = array(
+		'title' => 'Geolocation language list',
+		'description' => 'List of language added for geolocation',
+		'page callback' => 'theme',
+		'page arguments' => array('Geolocation_list'),
+		'access arguments' => array('administer site configuration'),
+		'type' => MENU_LOCAL_TASK, 
+    ); 
+  $items['geo-lang-delete'] = array(
+		'page callback' => 'Geolocation_delete_lang',
+		'access callback' => TRUE,
+		'type' => MENU_NORMAL_ITEM,
+		);
+	 
+	return $items;
+}
+/**
+ *  Geolocating the users country.
+*/
+
+function Geolocation() { 
+  $inc_path=$_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/geoip.inc';
+	$dat_path=$_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/GeoIP.dat';  
+ 	$dat=variable_get('Geolocation_dat_file_path',$dat_path);
+ 	$inc=variable_get('Geolocation_inc_file_path',$inc_path);
+	include_once($inc);
+	$gi = geoip_open($dat,GEOIP_STANDARD);
+	$ip = $_SERVER['REMOTE_ADDR'];
+	$c_code=geoip_country_code_by_addr($gi, $ip);  
+	$_SESSION['location'] = array('country_name' => geoip_country_name_by_addr($gi, $ip), 'country_code' => $c_code, 'geo_language' => Geolocation_get(strtolower($c_code)));
+	geoip_close($gi);
+	//return $country; 
+}
+/**
+ *  Internationalization lightbox for language listing.
+*/
+function Geolocation_international() {
+ global $language,$base_url; 
+ $languages = language_list('enabled');
+ $languages = $languages[1]; 
+ echo '<span class="ui-dialog-title" id="ui-dialog-title-regionPickerDialog">'.t('Please select your language to ensure the best possible experience.').'</span>';  
+        foreach ($languages as $item) {
+                echo '<a href="javascript:void(0);" id="'.$item->language.'" class="dialogLink" onclick="dd_call(this.id)">'.t($item->name)."<br />";
+        }
+	exit();
+}
+function Geolocation_international_session() {
+	 global $language,$base_url;
+   $_SESSION['lang']= arg(1); 
+}
+/**
+ *  Geolocation admin settings to add language and country.
+*/
+function Geolocation_international_language() {  
+
+	$form['Geolocation_country_code'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Country Code'),
+		'#description' =>t('Enter the correct country code to the appropirate language code below in lower case for example ( Greece country code is gr and country code is el'),   
+		'#size' => 30,
+		'#maxlength' => 6,
+		'#required' => TRUE,
+	);
+	$form['Geolocation_language_code'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Language Code'),
+		'#description' =>t('Enter the correct language code to the appropirate country code entered above in lower case for example ( Greece language code is el and country code is gr. NOTE: Language code should be as per drupal language code in internatinalization'), 
+		'#size' => 30,
+		'#maxlength' => 6,
+		'#required' => TRUE,
+	);
+	$form['submit'] = array(
+		'#type' => 'submit', 
+		'#value' => t('Add language'),
+	);
+ $form['#submit'] [] = 'Geolocation_international_language_submit';
+ return system_settings_form($form); 
+}
+/**
+ *  Geolocation admin settings to delete language and country.
+*/
+function Geolocation_international_language_delete() {
+
+	$form['Geolocation_country_code_del'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Country Code'),
+		'#description' =>t('Enter the correct country code to the appropirate language code below in lower case for example ( Greece country code is gr and country code is el'),  
+		'#size' => 30,
+		'#maxlength' => 6,
+		'#required' => TRUE,
+	);
+	$form['Geolocation_language_code_del'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Language Code'),
+		'#description' =>t('Enter the correct language code to the appropirate country code entered above in lower case for example ( Greece language code is el and country code is gr. NOTE: Language code should be as per drupal language code in internatinalization'),
+		'#size' => 30,
+		'#maxlength' => 6,
+		'#required' => TRUE,
+	);
+	$form['submit'] = array(
+		'#type' => 'submit', 
+		'#value' => t('Delete language'),
+	);
+	 $form['#submit'] [] = 'Geolocation_international_language_delete_submit';
+	 return system_settings_form($form); 
+}
+
+function Geolocation_international_language_delete_submit($form, &$form_state) {
+	global $user;
+	$form_values = $form_state['values'];
+	$result=db_query("DELETE FROM {Geolocation} WHERE country='%s' AND language='%s'",$form_values['Geolocation_country_code_del'],$form_values['Geolocation_language_code_del']);
+	if($result) {
+		drupal_set_message('Deleted Successfully.');
+	}
+	else {
+		drupal_set_message('The language is not deleted please enter the correct language code and country code');
+	}
+}
+
+function Geolocation_international_language_submit($form, &$form_state) {
+	global $user;
+	$form_values = $form_state['values'];
+	$result=db_query("INSERT INTO {Geolocation} (country, language) VALUES ('%s', '%s')",strtolower($form_values['Geolocation_country_code']),strtolower($form_values['Geolocation_language_code']));
+	if($result){
+		drupal_set_message('Added Successfully.');
+	}
+}
+
+function Geolocation_get($country) {
+	global $language;
+	$result=db_result(db_query("SELECT language FROM {Geolocation} WHERE country='%s'",$country));
+	if(!$result) {
+	$result= language_default()->language;
+	}
+	return $result;
+}
+
+function Geolocation_user($op, &$edit, &$account, $category = NULL) {
+	global $user,$language;
+  if($op=='logout') {
+				geo_session_restore_session_set();
+        setcookie('user',$user->uid,0,'/');  
+	  } 
+}
+
+function theme_Geolocation_list()
+{
+global $base_url,$user;
+	drupal_add_js('function delete_call(fm){ 
+									$.ajax({type: "post",url: "'.$base_url.'/geo-lang-delete/"+fm,
+										success: function(data){ location.reload();
+																					 }	
+									});		
+								}','inline');
+drupal_set_title(t('Geolocation Table'));
+$result = pager_query("SELECT *  FROM {Geolocation}", variable_get('default_nodes_main', 20), 0, "SELECT count(*) FROM {Geolocation}  ");
+$header = array('GEOID', 'COUNTRY', 'LANGUAGE','DELETE');
+$i=0;
+while ($node = db_fetch_object($result)) {
+  	$rows[$i]['geoid'] = $node->geoid ? $node->geoid :'N/A';
+  	$rows[$i]['country'] = $node->country ? $node->country:'N/A';
+  	$rows[$i]['language'] = $node->language ? $node->language:'N/A';
+    $rows[$i]['delete'] = '<a href="javascript:void(0);" id="'.$node->geoid.'" class="geoid" onclick="delete_call(this.id)">delete</a>';
+  	$i++;
+  }
+	$output = theme_table($header, $rows, $attributes = array(), $caption = NULL);
+  
+  if ($i>0) {
+    $output .= theme('pager', NULL, variable_get('default_nodes_main', 20));
+  }
+  else {
+    drupal_set_message(t('No contacts have been created.'));
+  }
+return $output;	
+}
+function Geolocation_delete_lang()
+{
+	$result=db_query("DELETE FROM {Geolocation} WHERE geoid='%d'",arg(1));
+	if($result) {
+		drupal_set_message('Deleted Successfully.');
+	}
+	else {
+		drupal_set_message('The language is not deleted');
+	}
+}
+
+function Geofilepath() {
+global $base_url;
+$form['Geolocation_dat_file_path'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Geo-dat path'),
+		'#description' =>t('Enter or paste the following path '. $_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/GeoIP.dat'),  
+		'#size' => 60,
+	  '#required' => TRUE,
+	);
+	$form['Geolocation_inc_file_path'] = array(
+		'#type' => 'textfield',
+		'#title' => t('Geo-inc path'),
+		'#description' =>t('Enter or paste the following path '. $_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/geoip.inc'),  
+		'#size' => 60,
+	  '#required' => TRUE
+	);
+  return system_settings_form($form); 
+}
+
+/**
+ * Retrieve stored session if available.
+ *
+ * @param $uid
+ *   The user ID of the user whose session is to be retrieved.
+ */
+function geo_session_restore_session_get($uid) {
+  $session = db_result(db_query("SELECT session FROM {geo_session_restore} WHERE uid = %d", $uid));
+  // Overwriting $_SESSION does not work reliably in 5.1.6. Manually merge.
+  if ($session) {
+    $session = unserialize($session);
+    foreach ($session as $key => $value) {
+      $_SESSION[$key] = $value;
+    }
+  }
+}
+
+/**
+ * Store the current session if available.
+ */
+function geo_session_restore_session_set() {
+  global $user;
+      db_query("DELETE FROM {geo_session_restore} WHERE uid = %d", $user->uid);
+      // Serialize session and store.
+     $session = geo_session_restore_vet($_SESSION);
+     //  print $user->uid;  
+      db_query("INSERT INTO {geo_session_restore} VALUES (%d, '%s')", $user->uid, serialize($session));
+}
+
+function geo_session_restore_vet($session) {
+  // Unset variables that might break this or other modules upon restore.
+  $variables = module_invoke_all('geo_session_restore');
+  foreach ($variables as $variable) {
+    unset($session[$variable]);
+}
+  return $session;
+}

@@ -1,0 +1,72 @@
+<?php
+/**
+ * @file
+ * Installation file for Geolocation with (i18n) module.
+ */
+
+/**
+ * Implementation of hook_schema().
+ */
+function Geolocation_schema() {
+  $schema['Geolocation'] = array(
+    'description' => 'Country codes and language codes',
+    'fields' => array(
+      'geoid' => array(
+        'type' => 'serial',
+        'not null' => TRUE,
+        'description' => 'geolocation id',
+      ),
+      'country' => array(
+        'description' => 'The country code for internationlization and Geolocation',
+        'type' => 'varchar',
+        'length' => 12,
+        'not null' => TRUE,
+        'default' => ''),
+      'language' => array(
+        'description' => 'The language code for internationlization and Geolocation',
+        'type' => 'varchar',
+        'length' => 12,
+        'not null' => TRUE,
+        'default' => ''),
+      ),
+    'primary key' => array('geoid'),
+    );
+
+    $schema['geo_session_restore'] = array(
+    'description' => 'Stores session variables for later restoration.',
+    'fields' => array(
+      'uid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => 'Primary key: {users}.uid for user.'
+      ),
+      'session' => array(
+        'type' => 'text',
+        'size' => 'big',
+        'description' => 'Store serialised user session for later retrieval.'
+      )
+    ),
+    'primary key' => array('uid')
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function Geolocation_install() {
+	$inc_path=$_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/geoip.inc';
+	$dat_path=$_SERVER['DOCUMENT_ROOT'].base_path().drupal_get_path('module', 'Geolocation').'/GeoIP.dat'; 
+	drupal_install_schema('Geolocation');
+	variable_set('Geolocation_dat_file_path',$dat_path);
+	variable_set('Geolocation_inc_file_path',$inc_path); 
+}
+/**
+ * Implementation of hook_uninstall().
+ */
+function Geolocation_uninstall() {
+  drupal_uninstall_schema('Geolocation');
+  variable_del('Geolocation_dat_file_path');
+  variable_del('Geolocation_inc_file_path');
+}

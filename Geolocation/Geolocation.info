@@ -1,0 +1,9 @@
+; $Id: Geolocation.info,v 1.1.2.3.2.1 2007/09/05 14:05:48 snpower Exp $
+name = Geolocation
+description = "Returns Geolocation of current user  ."
+core = 6.x
+dependencies[] = Geo location Settings
+dependencies[] = i18n
+dependencies[] =lightbox2
+
+
